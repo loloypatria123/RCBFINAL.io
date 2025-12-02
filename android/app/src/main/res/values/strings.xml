@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RoboCleanerBuddy</string>
+    <string name="facebook_app_id">1556967962012960</string>
+    <string name="fb_login_protocol_scheme">fb1556967962012960</string>
+    <string name="facebook_client_token">8b69f7ebaa1608beae88450b331c3d43</string>
+</resources>
+

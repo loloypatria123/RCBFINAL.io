@@ -1,0 +1,40 @@
+====================================
+YOUR SHA-1 FINGERPRINT
+====================================
+
+Copy this SHA-1 and add it to Firebase Console:
+
+5A:3D:9B:04:E9:C6:5D:DD:E4:24:D1:FE:58:C0:FC:DD:A2:00:7E:86
+
+====================================
+STEPS TO ADD TO FIREBASE:
+====================================
+
+1. Go to: https://console.firebase.google.com/project/rcbfinal-e7f13/settings/general
+
+2. Scroll to "Your apps" section
+
+3. Find or add Android app
+
+4. Click "Add fingerprint"
+
+5. Paste the SHA-1 above
+
+6. Click "Save"
+
+7. Download google-services.json
+
+8. Replace file in: android/app/google-services.json
+
+9. Run: flutter clean && flutter pub get && flutter run
+
+10. Test Google Sign-In - Should work! ✓
+
+====================================
+QUICK LINK TO FIREBASE:
+====================================
+
+https://console.firebase.google.com/project/rcbfinal-e7f13/settings/general
+
+====================================
+

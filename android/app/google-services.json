@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "374544378902",
+    "project_id": "rcbfinal-e7f13",
+    "storage_bucket": "rcbfinal-e7f13.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:374544378902:android:022b876259be185616d937",
+        "android_client_info": {
+          "package_name": "com.example.robocleaner"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "374544378902-2001pbo1vpp5v8l8l2e3gsk1plke1k6p.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.robocleaner",
+            "certificate_hash": "5a3d9b04e9c65ddde424d1fe58c0fcdda2007e86"
+          }
+        },
+        {
+          "client_id": "374544378902-in2gt776a91bqf158djhc41pv9uhi83o.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlzSLwzFU1yi3GtYYUKHj1-0YCFSv7CPQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "374544378902-in2gt776a91bqf158djhc41pv9uhi83o.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "374544378902-6qauflcrns9pbjfoem93kom3c67hbce3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.robocleaner"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
