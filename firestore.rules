@@ -15,6 +15,16 @@ service cloud.firestore {
     }
     
     // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    // Check if user is admin
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    
+    // ============================================
     // USERS COLLECTION RULES
     // ============================================
     match /users/{userId} {
@@ -22,8 +32,14 @@ service cloud.firestore {
       allow create: if request.auth != null && 
         request.auth.uid == userId;
       
+      // Allow create by admin (admin creating users)
+      allow create: if isAdmin();
+      
       // Allow read if user is authenticated and is the owner
       allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow read by admin (admin viewing all users)
+      allow read: if isAdmin();
       
       // Allow query by email for password reset (unauthenticated)
       // This is needed to check if email exists and send reset code
@@ -32,12 +48,18 @@ service cloud.firestore {
       // Allow update if user is authenticated and is the owner
       allow update: if request.auth != null && request.auth.uid == userId;
       
+      // Allow update by admin (admin managing users)
+      allow update: if isAdmin();
+      
       // Allow password reset field updates (unauthenticated)
       // Only allows updating passwordResetCode and passwordResetCodeExpiry fields
       allow update: if isPasswordResetUpdate();
       
       // Allow delete if user is authenticated and is the owner
       allow delete: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow delete by admin (admin deleting users)
+      allow delete: if isAdmin();
     }
     
     // ============================================
@@ -48,8 +70,14 @@ service cloud.firestore {
       allow create: if request.auth != null && 
         request.auth.uid == adminId;
       
+      // Allow create by admin (admin creating other admins)
+      allow create: if isAdmin();
+      
       // Allow read if user is authenticated and is the owner
       allow read: if request.auth != null && request.auth.uid == adminId;
+      
+      // Allow read by admin (admin viewing all admins)
+      allow read: if isAdmin();
       
       // Allow query by email for password reset (unauthenticated)
       // This is needed to check if email exists and send reset code
@@ -58,12 +86,19 @@ service cloud.firestore {
       // Allow update if user is authenticated and is the owner
       allow update: if request.auth != null && request.auth.uid == adminId;
       
+      // Allow update by admin (admin managing other admins)
+      allow update: if isAdmin();
+      
       // Allow password reset field updates (unauthenticated)
       // Only allows updating passwordResetCode and passwordResetCodeExpiry fields
       allow update: if isPasswordResetUpdate();
       
       // Allow delete if user is authenticated and is the owner
       allow delete: if request.auth != null && request.auth.uid == adminId;
+      
+      // Allow delete by admin (admin deleting other admins)
+      // Note: Prevent self-deletion for safety
+      allow delete: if isAdmin() && request.auth.uid != adminId;
     }
     
     // ============================================
@@ -145,8 +180,8 @@ service cloud.firestore {
       // Any authenticated user can create notifications
       allow create: if request.auth != null && 
         request.resource.data.userId is string &&
-        request.resource.data.containsKey('createdAt') &&
-        request.resource.data.containsKey('isRead');
+        'createdAt' in request.resource.data &&
+        'isRead' in request.resource.data;
       
       // Users can update their own notifications (mark as read, etc.)
       allow update: if request.auth != null && 

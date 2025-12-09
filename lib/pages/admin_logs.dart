@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../models/audit_log_model.dart';
@@ -442,60 +441,388 @@ class _AdminLogsState extends State<AdminLogs> {
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            ElevatedButton.icon(
-              onPressed: () => _showDateRangePicker(),
-              icon: const Icon(Icons.date_range, size: 18),
-              label: Text(
-                _startDate != null && _endDate != null
-                    ? '${DateFormat('MMM dd').format(_startDate!)} - ${DateFormat('MMM dd').format(_endDate!)}'
-                    : 'Date Range',
-                style: GoogleFonts.poppins(fontSize: 12),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _cardBg,
-                foregroundColor: _accentPrimary,
-                side: BorderSide(color: _accentPrimary.withValues(alpha: 0.2)),
-              ),
-            ),
-            if (_startDate != null || _endDate != null) ...[
-              const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _startDate = null;
-                    _endDate = null;
-                  });
-                },
-                icon: const Icon(Icons.clear, size: 18),
-                label: Text('Clear Dates', style: GoogleFonts.poppins(fontSize: 12)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _warningColor.withValues(alpha: 0.2),
-                  foregroundColor: _warningColor,
-                ),
-              ),
-            ],
-          ],
-        ),
+        _buildEnhancedDatePicker(),
       ],
     );
   }
 
-  void _showDateRangePicker() async {
-    final DateTimeRange? picked = await showDateRangePicker(
+  Widget _buildEnhancedDatePicker() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _accentPrimary.withValues(alpha: 0.2),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _accentPrimary.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _accentPrimary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.calendar_today_rounded,
+                  color: _accentPrimary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Date Range Filter',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: _textPrimary,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          // Quick Presets
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildQuickDateButton('Today', () => _setQuickDateRange(0, 0)),
+              _buildQuickDateButton('Last 7 Days', () => _setQuickDateRange(7, 0)),
+              _buildQuickDateButton('Last 30 Days', () => _setQuickDateRange(30, 0)),
+              _buildQuickDateButton('Last 90 Days', () => _setQuickDateRange(90, 0)),
+              _buildQuickDateButton('This Month', () => _setThisMonth()),
+              _buildQuickDateButton('Last Month', () => _setLastMonth()),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          const Divider(color: Color(0xFF2A3040), height: 1),
+          const SizedBox(height: 16),
+          
+          // Custom Date Range
+          Row(
+            children: [
+              Expanded(
+                child: _buildDateInputField(
+                  label: 'Start Date',
+                  date: _startDate,
+                  onTap: () => _showStartDatePicker(),
+                  icon: Icons.event_outlined,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 32),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  color: _accentPrimary,
+                  size: 20,
+                ),
+              ),
+              Expanded(
+                child: _buildDateInputField(
+                  label: 'End Date',
+                  date: _endDate,
+                  onTap: () => _showEndDatePicker(),
+                  icon: Icons.event_outlined,
+                ),
+              ),
+            ],
+          ),
+          
+          if (_startDate != null || _endDate != null) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _accentPrimary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _accentPrimary.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          color: _accentPrimary,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _startDate != null && _endDate != null
+                                ? 'Showing logs from ${DateFormat('MMM dd, yyyy').format(_startDate!)} to ${DateFormat('MMM dd, yyyy').format(_endDate!)}'
+                                : _startDate != null
+                                    ? 'From: ${DateFormat('MMM dd, yyyy').format(_startDate!)}'
+                                    : 'To: ${DateFormat('MMM dd, yyyy').format(_endDate!)}',
+                            style: GoogleFonts.poppins(
+                              fontSize: 11,
+                              color: _accentPrimary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _startDate = null;
+                        _endDate = null;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: _warningColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _warningColor.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.clear_rounded,
+                            color: _warningColor,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Clear',
+                            style: GoogleFonts.poppins(
+                              fontSize: 12,
+                              color: _warningColor,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickDateButton(String label, VoidCallback onTap) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: _cardBg.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _accentPrimary.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: _textPrimary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateInputField({
+    required String label,
+    required DateTime? date,
+    required VoidCallback onTap,
+    required IconData icon,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: _cardBg.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: date != null
+                  ? _accentPrimary.withValues(alpha: 0.5)
+                  : _accentPrimary.withValues(alpha: 0.2),
+              width: date != null ? 1.5 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    icon,
+                    color: _accentPrimary,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    style: GoogleFonts.poppins(
+                      fontSize: 11,
+                      color: _textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                date != null
+                    ? DateFormat('MMM dd, yyyy').format(date)
+                    : 'Select date',
+                style: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: date != null ? _textPrimary : _textSecondary,
+                  fontWeight: date != null ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _setQuickDateRange(int daysBack, int daysForward) {
+    final now = DateTime.now();
+    setState(() {
+      _startDate = now.subtract(Duration(days: daysBack));
+      _endDate = now.subtract(Duration(days: daysForward));
+    });
+  }
+
+  void _setThisMonth() {
+    final now = DateTime.now();
+    setState(() {
+      _startDate = DateTime(now.year, now.month, 1);
+      _endDate = now;
+    });
+  }
+
+  void _setLastMonth() {
+    final now = DateTime.now();
+    final lastMonth = DateTime(now.year, now.month - 1, 1);
+    final lastDayOfLastMonth = DateTime(now.year, now.month, 0);
+    setState(() {
+      _startDate = lastMonth;
+      _endDate = lastDayOfLastMonth;
+    });
+  }
+
+  Future<void> _showStartDatePicker() async {
+    final DateTime? picked = await showDatePicker(
       context: context,
+      initialDate: _startDate ?? DateTime.now().subtract(const Duration(days: 7)),
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now(),
-      initialDateRange: _startDate != null && _endDate != null
-          ? DateTimeRange(start: _startDate!, end: _endDate!)
-          : null,
+      lastDate: _endDate ?? DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: ThemeData.dark().copyWith(
             colorScheme: ColorScheme.dark(
               primary: _accentPrimary,
+              onPrimary: Colors.black,
               surface: _cardBg,
+              onSurface: _textPrimary,
+              secondary: _accentSecondary,
+              onSecondary: Colors.white,
+            ),
+            dialogBackgroundColor: _cardBg,
+            dialogTheme: DialogThemeData(
+              backgroundColor: _cardBg,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            cardTheme: CardThemeData(
+              color: _cardBg.withValues(alpha: 0.8),
+              elevation: 0,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: _accentPrimary,
+                textStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accentPrimary,
+                foregroundColor: Colors.black,
+                textStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: _cardBg.withValues(alpha: 0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: _accentPrimary.withValues(alpha: 0.3),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: _accentPrimary.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: _accentPrimary,
+                  width: 2,
+                ),
+              ),
             ),
           ),
           child: child!,
@@ -505,8 +832,97 @@ class _AdminLogsState extends State<AdminLogs> {
 
     if (picked != null) {
       setState(() {
-        _startDate = picked.start;
-        _endDate = picked.end;
+        _startDate = picked;
+        if (_endDate != null && _startDate!.isAfter(_endDate!)) {
+          _endDate = _startDate!.add(const Duration(days: 1));
+        }
+      });
+    }
+  }
+
+  Future<void> _showEndDatePicker() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? DateTime.now(),
+      firstDate: _startDate ?? DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: ColorScheme.dark(
+              primary: _accentPrimary,
+              onPrimary: Colors.black,
+              surface: _cardBg,
+              onSurface: _textPrimary,
+              secondary: _accentSecondary,
+              onSecondary: Colors.white,
+            ),
+            dialogBackgroundColor: _cardBg,
+            dialogTheme: DialogThemeData(
+              backgroundColor: _cardBg,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            cardTheme: CardThemeData(
+              color: _cardBg.withValues(alpha: 0.8),
+              elevation: 0,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: _accentPrimary,
+                textStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accentPrimary,
+                foregroundColor: Colors.black,
+                textStyle: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: _cardBg.withValues(alpha: 0.5),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: _accentPrimary.withValues(alpha: 0.3),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: _accentPrimary.withValues(alpha: 0.3),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(
+                  color: _accentPrimary,
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _endDate = picked;
+        if (_startDate != null && _endDate!.isBefore(_startDate!)) {
+          _startDate = _endDate!.subtract(const Duration(days: 1));
+        }
       });
     }
   }

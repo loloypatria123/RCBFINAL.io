@@ -10,6 +10,7 @@ import '../services/security_service.dart';
 import '../services/storage_service.dart';
 import '../services/google_signin_service.dart';
 import '../services/facebook_signin_service.dart';
+import '../services/user_profile_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
@@ -1549,5 +1550,159 @@ class AuthProvider extends ChangeNotifier {
   /// Reload user model from Firestore (useful after role/status changes)
   Future<void> reloadUserModel() async {
     await _loadUserModel();
+    notifyListeners();
+  }
+
+  /// Update user profile name
+  Future<Map<String, dynamic>> updateProfileName(String newName) async {
+    if (_user == null || _userModel == null) {
+      return {
+        'success': false,
+        'error': 'User not authenticated',
+      };
+    }
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final result = await UserProfileService.updateUserName(
+        userId: _user!.uid,
+        newName: newName,
+        isAdmin: isAdmin,
+      );
+
+      if (result['success'] == true) {
+        // Reload user model to get updated data
+        await _loadUserModel();
+        notifyListeners();
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// Update user profile email
+  Future<Map<String, dynamic>> updateProfileEmail(String newEmail) async {
+    if (_user == null || _userModel == null) {
+      return {
+        'success': false,
+        'error': 'User not authenticated',
+      };
+    }
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final result = await UserProfileService.updateUserEmail(
+        userId: _user!.uid,
+        newEmail: newEmail,
+        isAdmin: isAdmin,
+      );
+
+      if (result['success'] == true) {
+        // Reload user model to get updated data
+        await _loadUserModel();
+        notifyListeners();
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// Update user password
+  Future<Map<String, dynamic>> updatePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    if (_user == null) {
+      return {
+        'success': false,
+        'error': 'User not authenticated',
+      };
+    }
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final result = await UserProfileService.updateUserPassword(
+        userId: _user!.uid,
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// Update user profile photo URL
+  Future<Map<String, dynamic>> updateProfilePhotoUrl(String photoUrl) async {
+    if (_user == null || _userModel == null) {
+      return {
+        'success': false,
+        'error': 'User not authenticated',
+      };
+    }
+
+    try {
+      _isLoading = true;
+      notifyListeners();
+
+      final result = await UserProfileService.updateUserPhotoUrl(
+        userId: _user!.uid,
+        photoUrl: photoUrl,
+        isAdmin: isAdmin,
+      );
+
+      if (result['success'] == true) {
+        // Reload user model to get updated data
+        await _loadUserModel();
+        notifyListeners();
+      }
+
+      _isLoading = false;
+      notifyListeners();
+      return result;
+    } catch (e) {
+      _isLoading = false;
+      _errorMessage = e.toString();
+      notifyListeners();
+      return {
+        'success': false,
+        'error': e.toString(),
+      };
+    }
   }
 }

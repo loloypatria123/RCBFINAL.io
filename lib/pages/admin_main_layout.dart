@@ -11,7 +11,6 @@ import 'admin_logs.dart';
 import 'admin_reports.dart';
 import 'admin_settings.dart';
 import 'admin_analytics.dart';
-import 'admin_connectivity_settings.dart';
 
 // Professional palette aligned with user dashboard & auth pages
 const Color _sidebarBg = Color(0xFF0A0E27); // Sidebar / scaffold background
@@ -36,6 +35,7 @@ class AdminMainLayout extends StatefulWidget {
 class _AdminMainLayoutState extends State<AdminMainLayout> {
   int _selectedIndex = 0;
   bool _sidebarExpanded = true;
+  bool _isLoggingOut = false;
 
   final List<AdminMenuItem> _menuItems = [
     AdminMenuItem(
@@ -82,11 +82,6 @@ class _AdminMainLayoutState extends State<AdminMainLayout> {
       icon: Icons.settings,
       label: 'Settings',
       page: const AdminSettings(),
-    ),
-    AdminMenuItem(
-      icon: Icons.wifi,
-      label: 'Connectivity',
-      page: const AdminConnectivitySettings(),
     ),
   ];
 
@@ -327,18 +322,28 @@ class _AdminMainLayoutState extends State<AdminMainLayout> {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => _logout(),
+          onTap: _isLoggingOut ? null : () => _logout(),
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                const Icon(Icons.logout, color: _errorColor, size: 20),
+                if (_isLoggingOut)
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(_errorColor),
+                    ),
+                  )
+                else
+                  const Icon(Icons.logout, color: _errorColor, size: 20),
                 if (showText) ...[
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Logout',
+                      _isLoggingOut ? 'Logging out...' : 'Logout',
                       style: GoogleFonts.poppins(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -457,50 +462,107 @@ class _AdminMainLayoutState extends State<AdminMainLayout> {
   }
 
   void _logout() {
+    if (_isLoggingOut) return;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _cardBg,
-        title: Text(
-          'Logout',
-          style: GoogleFonts.poppins(
-            color: _textPrimary,
-            fontWeight: FontWeight.w700,
-            fontSize: 18,
-          ),
-        ),
-        content: Text(
-          'Are you sure you want to logout?',
-          style: GoogleFonts.poppins(color: _textSecondary, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(
-                color: _textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await context.read<AuthProvider>().signOut();
-              if (mounted) {
-                Navigator.of(context).pushReplacementNamed('/sign-in');
-              }
-            },
-            child: Text(
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          bool isProcessing = false;
+          
+          return AlertDialog(
+            backgroundColor: _cardBg,
+            title: Text(
               'Logout',
               style: GoogleFonts.poppins(
-                color: _errorColor,
+                color: _textPrimary,
                 fontWeight: FontWeight.w700,
+                fontSize: 18,
               ),
             ),
-          ),
-        ],
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Are you sure you want to logout?',
+                  style: GoogleFonts.poppins(color: _textSecondary, fontSize: 14),
+                ),
+                if (isProcessing) ...[
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentPrimary),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.poppins(
+                    color: _textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          isProcessing = true;
+                        });
+                        
+                        setState(() {
+                          _isLoggingOut = true;
+                        });
+                        
+                        try {
+                          final authProvider = context.read<AuthProvider>();
+                          await authProvider.signOut();
+                          
+                          if (mounted) {
+                            Navigator.of(context).pop(); // Close dialog
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/sign-in',
+                              (route) => false,
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            setDialogState(() {
+                              isProcessing = false;
+                            });
+                            setState(() {
+                              _isLoggingOut = false;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Logout failed. Please try again.',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: _errorColor,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: Text(
+                  isProcessing ? 'Logging out...' : 'Logout',
+                  style: GoogleFonts.poppins(
+                    color: _errorColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

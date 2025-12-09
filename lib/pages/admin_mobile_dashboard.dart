@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../providers/auth_provider.dart';
 
 // Professional palette aligned with user dashboard & auth pages
 const Color _bgPrimary = Color(0xFF0A0E27);
@@ -24,6 +26,7 @@ class AdminMobileDashboard extends StatefulWidget {
 
 class _AdminMobileDashboardState extends State<AdminMobileDashboard> {
   int _currentTab = 0;
+  bool _isLoggingOut = false;
 
   @override
   Widget build(BuildContext context) {
@@ -1004,16 +1007,25 @@ class _AdminMobileDashboardState extends State<AdminMobileDashboard> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: _isLoggingOut ? null : () => _logout(),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _errorColor,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: Text(
-                'Logout',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
-              ),
+              child: _isLoggingOut
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Logout',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
             ),
           ),
           const SizedBox(height: 20),
@@ -1107,6 +1119,112 @@ class _AdminMobileDashboardState extends State<AdminMobileDashboard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _logout() {
+    if (_isLoggingOut) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          bool isProcessing = false;
+          
+          return AlertDialog(
+            backgroundColor: _cardBg,
+            title: Text(
+              'Logout',
+              style: GoogleFonts.poppins(
+                color: _textPrimary,
+                fontWeight: FontWeight.w700,
+                fontSize: 18,
+              ),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Are you sure you want to logout?',
+                  style: GoogleFonts.poppins(color: _textSecondary, fontSize: 14),
+                ),
+                if (isProcessing) ...[
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentPrimary),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.poppins(
+                    color: _textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          isProcessing = true;
+                        });
+                        
+                        setState(() {
+                          _isLoggingOut = true;
+                        });
+                        
+                        try {
+                          final authProvider = context.read<AuthProvider>();
+                          await authProvider.signOut();
+                          
+                          if (mounted) {
+                            Navigator.of(context).pop(); // Close dialog
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/sign-in',
+                              (route) => false,
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            setDialogState(() {
+                              isProcessing = false;
+                            });
+                            setState(() {
+                              _isLoggingOut = false;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Logout failed. Please try again.',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: _errorColor,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: Text(
+                  isProcessing ? 'Logging out...' : 'Logout',
+                  style: GoogleFonts.poppins(
+                    color: _errorColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

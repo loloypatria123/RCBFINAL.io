@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/cleaning_schedule_model.dart';
@@ -141,29 +142,42 @@ class ScheduleService {
         },
       );
 
-      // Create notification for assigned user if applicable
-      if (assignedUserId != null) {
-        await _createNotification(
-          userId: assignedUserId,
-          type: NotificationType.scheduleAdded,
-          title: 'New Cleaning Schedule',
-          message: 'Admin $adminName has scheduled a cleaning: $title',
-          scheduleId: scheduleId,
-        );
-
-        // Log the notification action
-        await AuditService.log(
-          action: AuditAction.userNotified,
-          description: 'Notified user about new schedule: $title',
-          actorId: adminId,
-          actorName: adminName,
-          actorType: 'admin',
-          scheduleId: scheduleId,
-          affectedUserId: assignedUserId,
-        );
+      // Get all users to send notifications to everyone
+      final allUsers = await _getAllUserIds();
+      
+      // Create notifications for ALL users
+      int notificationCount = 0;
+      for (final userId in allUsers) {
+        try {
+          await _createNotification(
+            userId: userId,
+            type: NotificationType.scheduleAdded,
+            title: 'New Cleaning Schedule',
+            message: 'Admin $adminName has scheduled a cleaning: $title',
+            scheduleId: scheduleId,
+          );
+          notificationCount++;
+        } catch (e) {
+          print('⚠️ Failed to notify user $userId: $e');
+        }
       }
 
+      // Log the notification action
+      await AuditService.log(
+        action: AuditAction.userNotified,
+        description: 'Notified $notificationCount users about new schedule: $title',
+        actorId: adminId,
+        actorName: adminName,
+        actorType: 'admin',
+        scheduleId: scheduleId,
+        metadata: {
+          'notificationCount': notificationCount,
+          'totalUsers': allUsers.length,
+        },
+      );
+
       print('✅ Schedule created successfully: $scheduleId');
+      print('✅ Notifications sent to $notificationCount users');
       return scheduleId;
     } catch (e) {
       print('❌ Error creating schedule: $e');
@@ -306,12 +320,12 @@ class ScheduleService {
     }
   }
 
-  /// Get schedules for a specific user
+  /// Get schedules for a specific user (returns ALL schedules for all users)
   static Future<List<CleaningSchedule>> getUserSchedules(String userId) async {
     try {
+      // Return ALL schedules so all users can see them
       final snapshot = await _firestore
           .collection('schedules')
-          .where('assignedUserId', isEqualTo: userId)
           .orderBy('scheduledDate', descending: true)
           .get();
 
@@ -378,11 +392,11 @@ class ScheduleService {
         );
   }
 
-  /// Stream user schedules (real-time updates)
+  /// Stream user schedules (real-time updates) - returns ALL schedules for all users
   static Stream<List<CleaningSchedule>> streamUserSchedules(String userId) {
+    // Return ALL schedules so all users can see them in real-time
     return _firestore
         .collection('schedules')
-        .where('assignedUserId', isEqualTo: userId)
         .orderBy('scheduledDate', descending: true)
         .snapshots()
         .map(
@@ -529,45 +543,81 @@ class ScheduleService {
     String userId, {
     int limit = 50,
   }) {
+    final controller = StreamController<List<UserNotification>>.broadcast();
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? subscription;
+    bool isUsingFallback = false;
+
+    // Try with orderBy first (requires composite index)
     try {
-      // Query with orderBy (requires composite index: userId + createdAt)
-      return _firestore
+      subscription = _firestore
           .collection('notifications')
           .where('userId', isEqualTo: userId)
           .orderBy('createdAt', descending: true)
           .limit(limit)
           .snapshots()
-          .map(
+          .listen(
             (snapshot) {
               try {
                 final notifications = _parseNotifications(snapshot.docs, userId);
-                
-                print('📬 Stream returned ${notifications.length} notifications for user: $userId');
-                if (notifications.isNotEmpty) {
-                  print('   First notification: ${notifications.first.title} (read: ${notifications.first.isRead}, id: ${notifications.first.id})');
-                }
-                return notifications;
+                // Sort manually to ensure correct order
+                notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                controller.add(notifications);
               } catch (e) {
                 print('❌ Error processing notification stream: $e');
-                return <UserNotification>[];
+                controller.add([]);
               }
             },
-          )
-          .handleError((error) {
-            print('❌ Error in notification stream: $error');
-            print('   User ID: $userId');
-            print('   Error type: ${error.runtimeType}');
-            print('   ⚠️ This might be due to missing composite index!');
-            print('   ⚠️ Create index: notifications collection');
-            print('   ⚠️ Fields: userId (Ascending) + createdAt (Descending)');
-            // Return empty list on error
-            return <UserNotification>[];
-          });
+            onError: (error) {
+              if (!isUsingFallback) {
+                isUsingFallback = true;
+                print('❌ Error in notification stream (trying fallback): $error');
+                print('   This might be due to missing composite index');
+                print('   Using fallback query without orderBy');
+                
+                // Cancel the original subscription
+                subscription?.cancel();
+                
+                // Fallback: Query without orderBy, then sort in memory
+                _firestore
+                    .collection('notifications')
+                    .where('userId', isEqualTo: userId)
+                    .limit(limit)
+                    .snapshots()
+                    .listen(
+                      (snapshot) {
+                        try {
+                          final notifications = _parseNotifications(snapshot.docs, userId);
+                          // Sort manually by createdAt descending
+                          notifications.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                          controller.add(notifications);
+                        } catch (e) {
+                          print('❌ Error in fallback stream: $e');
+                          controller.add([]);
+                        }
+                      },
+                      onError: (fallbackError) {
+                        print('❌ Fallback stream also failed: $fallbackError');
+                        controller.add([]);
+                      },
+                    );
+              } else {
+                // Fallback also failed, just emit empty list
+                controller.add([]);
+              }
+            },
+          );
     } catch (e) {
       print('❌ Error creating notification stream: $e');
-      // Return an empty stream on error
-      return Stream.value(<UserNotification>[]);
+      // Emit empty list immediately
+      controller.add([]);
     }
+
+    // Clean up subscription when stream is cancelled
+    controller.onCancel = () {
+      subscription?.cancel();
+    };
+
+    return controller.stream;
   }
 
   /// Helper method to parse notification documents
@@ -632,6 +682,51 @@ class ScheduleService {
       print('❌ Error marking notification as read: $e');
       print('   Notification ID: $notificationId');
       return false;
+    }
+  }
+
+  /// Delete a notification
+  static Future<bool> deleteNotification(String notificationId) async {
+    try {
+      await _firestore.collection('notifications').doc(notificationId).delete();
+      print('✅ Notification deleted: $notificationId');
+      return true;
+    } catch (e) {
+      print('❌ Error deleting notification: $e');
+      print('   Notification ID: $notificationId');
+      return false;
+    }
+  }
+
+  /// Get all user IDs from both users and admins collections
+  /// Used to send notifications to all users when schedule is created
+  static Future<List<String>> _getAllUserIds() async {
+    try {
+      final userIds = <String>[];
+
+      // Get all users from users collection
+      final usersSnapshot = await _firestore.collection('users').get();
+      for (var doc in usersSnapshot.docs) {
+        final userId = doc.id;
+        if (userId.isNotEmpty) {
+          userIds.add(userId);
+        }
+      }
+
+      // Get all users from admins collection (excluding the admin who created the schedule)
+      final adminsSnapshot = await _firestore.collection('admins').get();
+      for (var doc in adminsSnapshot.docs) {
+        final adminId = doc.id;
+        if (adminId.isNotEmpty) {
+          userIds.add(adminId);
+        }
+      }
+
+      print('📋 Found ${userIds.length} users to notify');
+      return userIds;
+    } catch (e) {
+      print('❌ Error getting all user IDs: $e');
+      return [];
     }
   }
 }

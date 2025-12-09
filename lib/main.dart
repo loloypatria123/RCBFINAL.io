@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'firebase_options.dart';
 import 'pages/sign_in_page.dart';
 import 'pages/sign_up_page.dart';
@@ -20,6 +21,15 @@ import 'providers/ui_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Initialize Supabase
+  // TODO: Replace with your Supabase URL and anon key
+  // Get these from your Supabase project settings: https://app.supabase.com/project/_/settings/api
+  await Supabase.initialize(
+    url: 'https://githmtuzvplarlsdfvoc.supabase.co', // Replace with your Supabase project URL
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdpdGhtdHV6dnBsYXJsc2Rmdm9jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5ODc3MjIsImV4cCI6MjA4MDU2MzcyMn0.Q7rsnnS8H9L5FvyimIEgosFuV3BJahdASnewkhdXC1s', // Replace with your Supabase anon key
+  );
+  
   runApp(const MyApp());
 }
 
@@ -46,7 +56,7 @@ class MyApp extends StatelessWidget {
       child: Consumer<UIProvider>(
         builder: (context, uiProvider, _) {
           return MaterialApp(
-            title: 'RoboCleanerBuddy',
+            title: 'RCB',
             theme: ThemeData(useMaterial3: true, brightness: Brightness.light),
             darkTheme: ThemeData(
               useMaterial3: true,

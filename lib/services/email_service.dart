@@ -86,7 +86,7 @@ class EmailService {
           'template_params': {
             'to_email': email,
             'user_name': userName,
-            'subject': 'Welcome to RoboCleanerBuddy!',
+            'subject': 'Welcome to RCB!',
           },
         }),
       );

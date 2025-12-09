@@ -487,6 +487,20 @@ class _AdminUserManagementState extends State<AdminUserManagement> {
                       ],
                     ),
                   ),
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, size: 16, color: _warningColor),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Delete User',
+                          style: GoogleFonts.poppins(color: _warningColor),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
                 color: _cardBg,
                 icon: Icon(Icons.more_vert, color: _accentPrimary, size: 18),
@@ -518,30 +532,290 @@ class _AdminUserManagementState extends State<AdminUserManagement> {
   }
 
   void _showAddUserDialog() {
+    final nameController = TextEditingController();
+    final emailController = TextEditingController();
+    final passwordController = TextEditingController();
+    UserRole selectedRole = UserRole.user;
+    String selectedStatus = 'Active';
+    bool isCreating = false;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _cardBg,
-        title: Text(
-          'Add New User',
-          style: GoogleFonts.poppins(
-            color: _textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          'Add user functionality',
-          style: GoogleFonts.poppins(color: _textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: _textSecondary),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: _cardBg,
+          title: Text(
+            'Add New User',
+            style: GoogleFonts.poppins(
+              color: _textPrimary,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ],
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 400,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: nameController,
+                    style: GoogleFonts.poppins(color: _textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Full Name',
+                      labelStyle: GoogleFonts.poppins(color: _textSecondary),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _accentPrimary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: _accentPrimary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    style: GoogleFonts.poppins(color: _textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      labelStyle: GoogleFonts.poppins(color: _textSecondary),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _accentPrimary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: _accentPrimary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    style: GoogleFonts.poppins(color: _textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Password',
+                      labelStyle: GoogleFonts.poppins(color: _textSecondary),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _accentPrimary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: _accentPrimary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Role',
+                    style: GoogleFonts.poppins(
+                      color: _textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<UserRole>(
+                          title: Text(
+                            'User',
+                            style: GoogleFonts.poppins(
+                              color: _textPrimary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          value: UserRole.user,
+                          groupValue: selectedRole,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() => selectedRole = value);
+                            }
+                          },
+                          activeColor: _accentPrimary,
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<UserRole>(
+                          title: Text(
+                            'Admin',
+                            style: GoogleFonts.poppins(
+                              color: _textPrimary,
+                              fontSize: 14,
+                            ),
+                          ),
+                          value: UserRole.admin,
+                          groupValue: selectedRole,
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() => selectedRole = value);
+                            }
+                          },
+                          activeColor: _accentPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Status',
+                    style: GoogleFonts.poppins(
+                      color: _textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    value: selectedStatus,
+                    decoration: InputDecoration(
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(
+                          color: _accentPrimary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: _accentPrimary),
+                      ),
+                    ),
+                    dropdownColor: _cardBg,
+                    style: GoogleFonts.poppins(color: _textPrimary),
+                    items: ['Active', 'Inactive'].map((status) {
+                      return DropdownMenuItem(
+                        value: status,
+                        child: Text(
+                          status,
+                          style: GoogleFonts.poppins(color: _textPrimary),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => selectedStatus = value);
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isCreating
+                  ? null
+                  : () {
+                      nameController.dispose();
+                      emailController.dispose();
+                      passwordController.dispose();
+                      Navigator.pop(context);
+                    },
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(color: _textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isCreating
+                  ? null
+                  : () async {
+                      if (nameController.text.trim().isEmpty ||
+                          emailController.text.trim().isEmpty ||
+                          passwordController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please fill in all fields',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setDialogState(() => isCreating = true);
+
+                      final currentUser = FirebaseAuth.instance.currentUser;
+                      if (currentUser == null) {
+                        setDialogState(() => isCreating = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Admin not authenticated',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      final result = await UserManagementService.createUser(
+                        email: emailController.text.trim(),
+                        password: passwordController.text,
+                        name: nameController.text.trim(),
+                        role: selectedRole,
+                        adminId: currentUser.uid,
+                        adminEmail: currentUser.email ?? 'unknown@email.com',
+                        adminName: currentUser.displayName ?? 'Admin User',
+                        status: selectedStatus,
+                      );
+
+                      if (mounted) {
+                        setDialogState(() => isCreating = false);
+
+                        if (result['success'] == true) {
+                          nameController.dispose();
+                          emailController.dispose();
+                          passwordController.dispose();
+                          Navigator.pop(context);
+                          await _loadUsers();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'User created successfully',
+                                style: GoogleFonts.poppins(),
+                              ),
+                              backgroundColor: _successColor,
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                result['error'] ?? 'Failed to create user',
+                                style: GoogleFonts.poppins(),
+                              ),
+                              backgroundColor: _warningColor,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accentPrimary,
+                foregroundColor: Colors.black,
+              ),
+              child: isCreating
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.black),
+                      ),
+                    )
+                  : Text(
+                      'Create User',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -634,6 +908,78 @@ class _AdminUserManagementState extends State<AdminUserManagement> {
             backgroundColor: _warningColor,
           ),
         );
+      }
+    } else if (action == 'delete') {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: _cardBg,
+          title: Text(
+            'Delete User',
+            style: GoogleFonts.poppins(
+              color: _textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          content: Text(
+            'Are you sure you want to delete ${user.name} (${user.email})? This action cannot be undone.',
+            style: GoogleFonts.poppins(color: _textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(color: _textSecondary),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _warningColor,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                'Delete',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        final success = await UserManagementService.deleteUser(
+          targetUserId: user.id,
+          isAdmin: user.role == 'Admin',
+          adminId: adminId,
+          adminEmail: adminEmail,
+          adminName: adminName,
+        );
+
+        if (success) {
+          await _loadUsers();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'User deleted successfully',
+                style: GoogleFonts.poppins(),
+              ),
+              backgroundColor: _successColor,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to delete user',
+                style: GoogleFonts.poppins(),
+              ),
+              backgroundColor: _warningColor,
+            ),
+          );
+        }
       }
     }
   }

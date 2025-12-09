@@ -6,6 +6,7 @@ import '../services/report_service.dart';
 import '../services/schedule_service.dart';
 import '../models/notification_model.dart';
 import '../models/report_model.dart';
+import '../models/cleaning_schedule_model.dart';
 
 
 // Professional palette aligned with sign-in / sign-up pages
@@ -32,6 +33,7 @@ class UserDashboard extends StatefulWidget {
 
 class _UserDashboardState extends State<UserDashboard> with TickerProviderStateMixin {
   int _currentPage = 0;
+  bool _isLoggingOut = false;
 
   final List<UserPage> _pages = [
     UserPage(icon: Icons.home, label: 'Dashboard'),
@@ -235,8 +237,18 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.logout, color: _errorColor),
-                  onPressed: () => _logout(),
+                  icon: _isLoggingOut
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(_errorColor),
+                          ),
+                        )
+                      : const Icon(Icons.logout, color: _errorColor),
+                  onPressed: _isLoggingOut ? null : () => _logout(),
+                  tooltip: _isLoggingOut ? 'Logging out...' : 'Logout',
                 ),
               ],
             ),
@@ -266,13 +278,16 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
   }
 
   Widget _buildAdminSchedulingPage() {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final userId = authProvider.user?.uid ?? '';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Admin Scheduling',
+            'Cleaning Schedules',
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -281,43 +296,237 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
           ),
           const SizedBox(height: 12),
           Text(
-            'View and manage cleaning schedules created by admin.',
+            'View all cleaning schedules created by admin.',
             style: GoogleFonts.poppins(fontSize: 11, color: _textSecondary),
           ),
           const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: _cardBg,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _accentPrimary.withOpacity(0.2)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Upcoming Schedules',
+          StreamBuilder<List<CleaningSchedule>>(
+            stream: ScheduleService.streamUserSchedules(userId),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _accentPrimary.withOpacity(0.2)),
+                  ),
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(_accentPrimary),
+                    ),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _errorColor.withOpacity(0.2)),
+                  ),
+                  child: Text(
+                    'Error loading schedules: ${snapshot.error}',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: _errorColor,
+                    ),
+                  ),
+                );
+              }
+
+              final schedules = snapshot.data ?? [];
+
+              if (schedules.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: _cardBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _accentPrimary.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Upcoming Schedules',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No schedules available yet. Admin will create schedules and you will be notified.',
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          color: _textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Upcoming Schedules (${schedules.length})',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ...schedules.map((schedule) => _buildScheduleCard(schedule)),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScheduleCard(CleaningSchedule schedule) {
+    final dateStr = '${schedule.scheduledDate.day}/${schedule.scheduledDate.month}/${schedule.scheduledDate.year}';
+    final timeStr = '${schedule.scheduledTime.hour.toString().padLeft(2, '0')}:${schedule.scheduledTime.minute.toString().padLeft(2, '0')}';
+    final statusColor = _getScheduleStatusColor(schedule.status);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _cardBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _accentPrimary.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  schedule.title,
                   style: GoogleFonts.poppins(
-                    fontSize: 13,
+                    fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: _textPrimary,
                   ),
                 ),
-                const SizedBox(height: 12),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: statusColor, width: 0.5),
+                ),
+                child: Text(
+                  schedule.status.toString().split('.').last,
+                  style: GoogleFonts.poppins(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            schedule.description,
+            style: GoogleFonts.poppins(
+              fontSize: 12,
+              color: _textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.calendar_today, size: 14, color: _accentPrimary),
+              const SizedBox(width: 6),
+              Text(
+                dateStr,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: _textSecondary,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Icon(Icons.access_time, size: 14, color: _accentPrimary),
+              const SizedBox(width: 6),
+              Text(
+                timeStr,
+                style: GoogleFonts.poppins(
+                  fontSize: 12,
+                  color: _textSecondary,
+                ),
+              ),
+              if (schedule.estimatedDuration != null) ...[
+                const SizedBox(width: 16),
+                Icon(Icons.timer, size: 14, color: _accentPrimary),
+                const SizedBox(width: 6),
                 Text(
-                  'No schedules available yet. Ask an admin to create a schedule.',
+                  '${schedule.estimatedDuration} min',
                   style: GoogleFonts.poppins(
                     fontSize: 12,
                     color: _textSecondary,
                   ),
                 ),
               ],
-            ),
+            ],
           ),
-          const SizedBox(height: 20),
+          if (schedule.notes != null && schedule.notes!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: _primaryMedium,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.note, size: 14, color: _accentSecondary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      schedule.notes!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 11,
+                        color: _textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  Color _getScheduleStatusColor(ScheduleStatus status) {
+    switch (status) {
+      case ScheduleStatus.scheduled:
+        return _accentPrimary;
+      case ScheduleStatus.inProgress:
+        return _accentSecondary;
+      case ScheduleStatus.completed:
+        return _successColor;
+      case ScheduleStatus.cancelled:
+        return _errorColor;
+    }
   }
 
   Widget _buildDashboardPage() {
@@ -5587,7 +5796,9 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                   limit: 3,
                 ),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
+                  // Show loading only on initial connection, not on errors
+                  if (snapshot.connectionState == ConnectionState.waiting && 
+                      !snapshot.hasError) {
                     return const Center(
                       child: SizedBox(
                         width: 20,
@@ -5597,6 +5808,19 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                     );
                   }
 
+                  // Handle errors gracefully
+                  if (snapshot.hasError) {
+                    print('⚠️ Notification stream error: ${snapshot.error}');
+                    return Text(
+                      'No notifications',
+                      style: GoogleFonts.poppins(
+                        fontSize: 12,
+                        color: _textSecondary,
+                      ),
+                    );
+                  }
+
+                  // Show empty state if no data
                   if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Text(
                       'No notifications',
@@ -5613,8 +5837,9 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                     children: notifications
                         .map(
                           (n) => Padding(
+                            key: ValueKey(n.id),
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildNotificationRow(
+                            child: _buildDismissibleNotification(
                               n.title,
                               n.message,
                               _getNotificationColor(n.type),
@@ -5663,11 +5888,208 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
     return '${diff.inDays} d ago';
   }
 
-  Widget _buildNotificationRow(
+  Widget _buildDismissibleNotification(
     String title,
     String message,
     Color color,
     String time, {
+    bool isRead = false,
+    UserNotification? notification,
+  }) {
+    if (notification == null) {
+      return _buildNotificationRow(
+        title: title,
+        message: message,
+        color: color,
+        time: time,
+        isRead: isRead,
+        notification: notification,
+      );
+    }
+
+    return Dismissible(
+      key: ValueKey(notification.id),
+      direction: DismissDirection.endToStart,
+      movementDuration: const Duration(milliseconds: 300),
+      resizeDuration: const Duration(milliseconds: 200),
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              _errorColor,
+              _errorColor.withOpacity(0.8),
+            ],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: _errorColor.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 200),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: Opacity(
+                    opacity: value,
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Delete',
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        // Show confirmation dialog
+        return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: _cardBg,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: [
+                Icon(Icons.delete_outline, color: _errorColor, size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  'Delete Notification',
+                  style: GoogleFonts.poppins(
+                    color: _textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'Are you sure you want to delete this notification?',
+              style: GoogleFonts.poppins(
+                color: _textSecondary,
+                fontSize: 14,
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.poppins(
+                    color: _textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _errorColor,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: Text(
+                  'Delete',
+                  style: GoogleFonts.poppins(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ) ?? false;
+      },
+      onDismissed: (direction) async {
+        // Delete notification with animation
+        final success = await ScheduleService.deleteNotification(notification.id);
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Notification deleted',
+                    style: GoogleFonts.poppins(),
+                  ),
+                ],
+              ),
+              backgroundColor: _successColor,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.error_outline, color: Colors.white, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Failed to delete notification',
+                    style: GoogleFonts.poppins(),
+                  ),
+                ],
+              ),
+              backgroundColor: _errorColor,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          );
+        }
+      },
+      child: _buildNotificationRow(
+        title: title,
+        message: message,
+        color: color,
+        time: time,
+        isRead: isRead,
+        notification: notification,
+      ),
+    );
+  }
+
+  Widget _buildNotificationRow({
+    required String title,
+    required String message,
+    required Color color,
+    required String time,
     bool isRead = false,
     UserNotification? notification,
   }) {
@@ -5904,25 +6326,131 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                     ],
                   ),
                 ),
-                // Mark as Read Button
-                if (!isRead) ...[
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(
-                      Icons.check_circle_outline,
-                      size: 20,
-                      color: color,
-                    ),
-                    onPressed: () {
-                      if (notification != null) {
-                        ScheduleService.markNotificationAsRead(notification.id);
-                      }
-                    },
-                    tooltip: 'Mark as read',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
+                // Action Buttons
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Mark as Read Button
+                    if (!isRead)
+                      IconButton(
+                        icon: Icon(
+                          Icons.check_circle_outline,
+                          size: 20,
+                          color: color,
+                        ),
+                        onPressed: () {
+                          if (notification != null) {
+                            ScheduleService.markNotificationAsRead(notification.id);
+                          }
+                        },
+                        tooltip: 'Mark as read',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    // Delete Button
+                    if (notification != null) ...[
+                      if (!isRead) const SizedBox(height: 4),
+                      IconButton(
+                        icon: Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: _errorColor.withOpacity(0.7),
+                        ),
+                        onPressed: () async {
+                          // Show confirmation dialog
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              backgroundColor: _cardBg,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              title: Row(
+                                children: [
+                                  Icon(Icons.delete_outline, color: _errorColor, size: 24),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    'Delete Notification',
+                                    style: GoogleFonts.poppins(
+                                      color: _textPrimary,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 18,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              content: Text(
+                                'Are you sure you want to delete this notification?',
+                                style: GoogleFonts.poppins(
+                                  color: _textSecondary,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(false),
+                                  child: Text(
+                                    'Cancel',
+                                    style: GoogleFonts.poppins(
+                                      color: _textSecondary,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.of(context).pop(true),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _errorColor,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Delete',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ) ?? false;
+
+                          if (confirmed && mounted) {
+                            // Delete with animation
+                            final success = await ScheduleService.deleteNotification(notification.id);
+                            if (success && mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(Icons.check_circle, color: Colors.white, size: 20),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Notification deleted',
+                                        style: GoogleFonts.poppins(),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: _successColor,
+                                  behavior: SnackBarBehavior.floating,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        tooltip: 'Delete',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
           ),
@@ -6205,44 +6733,24 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                               }
                             }
 
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
+                            // Show loading only on initial connection, not on errors
+                            if (snapshot.connectionState == ConnectionState.waiting && 
+                                !snapshot.hasError) {
                               return const Center(
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               );
                             }
 
+                            // Handle errors gracefully
                             if (snapshot.hasError) {
+                              print('⚠️ Notification dialog stream error: ${snapshot.error}');
                               return Center(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.error_outline,
-                                      color: _errorColor,
-                                      size: 48,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'Error loading notifications',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        color: _errorColor,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                                      child: Text(
-                                        '${snapshot.error}',
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 10,
-                                          color: _textSecondary,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ],
+                                child: Text(
+                                  'No notifications',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: _textSecondary,
+                                  ),
                                 ),
                               );
                             }
@@ -6286,7 +6794,7 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
                                         padding: const EdgeInsets.only(
                                           bottom: 12,
                                         ),
-                                        child: _buildNotificationRow(
+                                        child: _buildDismissibleNotification(
                                           n.title,
                                           n.message,
                                           _getNotificationColor(n.type),
@@ -6314,43 +6822,103 @@ class _UserDashboardState extends State<UserDashboard> with TickerProviderStateM
   }
 
   void _logout() {
+    if (_isLoggingOut) return;
+    
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _cardBg,
-        title: Text(
-          'Logout',
-          style: GoogleFonts.poppins(
-            color: _textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          'Are you sure?',
-          style: GoogleFonts.poppins(color: _textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.poppins(color: _textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await context.read<AuthProvider>().signOut();
-              if (mounted) {
-                Navigator.of(context).pushReplacementNamed('/sign-in');
-              }
-            },
-            child: Text(
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          bool isProcessing = false;
+          
+          return AlertDialog(
+            backgroundColor: _cardBg,
+            title: Text(
               'Logout',
-              style: GoogleFonts.poppins(color: _errorColor),
+              style: GoogleFonts.poppins(
+                color: _textPrimary,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-        ],
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Are you sure?',
+                  style: GoogleFonts.poppins(color: _textSecondary),
+                ),
+                if (isProcessing) ...[
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(_accentPrimary),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: GoogleFonts.poppins(color: _textSecondary),
+                ),
+              ),
+              TextButton(
+                onPressed: isProcessing
+                    ? null
+                    : () async {
+                        setDialogState(() {
+                          isProcessing = true;
+                        });
+                        
+                        setState(() {
+                          _isLoggingOut = true;
+                        });
+                        
+                        try {
+                          final authProvider = context.read<AuthProvider>();
+                          await authProvider.signOut();
+                          
+                          if (mounted) {
+                            Navigator.of(context).pop(); // Close dialog
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              '/sign-in',
+                              (route) => false,
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            setDialogState(() {
+                              isProcessing = false;
+                            });
+                            setState(() {
+                              _isLoggingOut = false;
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Logout failed. Please try again.',
+                                  style: GoogleFonts.poppins(),
+                                ),
+                                backgroundColor: _errorColor,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                child: Text(
+                  isProcessing ? 'Logging out...' : 'Logout',
+                  style: GoogleFonts.poppins(
+                    color: _errorColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

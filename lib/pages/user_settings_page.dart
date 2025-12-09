@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 import '../providers/auth_provider.dart';
 import '../providers/ui_provider.dart';
+import '../services/supabase_storage_service.dart';
 
 // Color constants for settings page
 class _SettingsColors {
@@ -238,46 +241,37 @@ class _SettingsContent extends StatelessWidget {
             pulseAnimation,
           ),
           const SizedBox(height: 12),
-          
-          _AnimatedSettingsTile(
-            title: localizedText(context, 'view_profile_title'),
-            subtitle:
-                '${authProvider.userModel?.name ?? 'User'} • ${authProvider.userModel?.email ?? 'N/A'}',
-            icon: Icons.account_circle,
-            color: _SettingsColors.accent,
-            pulseAnimation: pulseAnimation,
+          GestureDetector(
+            onTap: () => _showUpdateUsernameDialog(context, authProvider),
+            child: _AnimatedSettingsTile(
+              title: 'Update username',
+              subtitle: 'Change your display name',
+              icon: Icons.edit,
+              color: _SettingsColors.accentSecondary,
+              pulseAnimation: pulseAnimation,
+            ),
           ),
           const SizedBox(height: 12),
-          _AnimatedSettingsTile(
-            title: 'Update username',
-            subtitle: 'Change your display name',
-            icon: Icons.edit,
-            color: _SettingsColors.accentSecondary,
-            pulseAnimation: pulseAnimation,
+          GestureDetector(
+            onTap: () => _showUpdateEmailDialog(context, authProvider),
+            child: _AnimatedSettingsTile(
+              title: 'Update email',
+              subtitle: 'Change your email address',
+              icon: Icons.email,
+              color: _SettingsColors.accent,
+              pulseAnimation: pulseAnimation,
+            ),
           ),
           const SizedBox(height: 12),
-          _AnimatedSettingsTile(
-            title: 'Update email',
-            subtitle: 'Change your email address',
-            icon: Icons.email,
-            color: _SettingsColors.accent,
-            pulseAnimation: pulseAnimation,
-          ),
-          const SizedBox(height: 12),
-          _AnimatedSettingsTile(
-            title: 'Update password',
-            subtitle: 'Change your account password',
-            icon: Icons.lock,
-            color: _SettingsColors.warningColor,
-            pulseAnimation: pulseAnimation,
-          ),
-          const SizedBox(height: 12),
-          _AnimatedSettingsTile(
-            title: 'Upload profile image',
-            subtitle: 'Add or update your profile picture',
-            icon: Icons.camera_alt,
-            color: _SettingsColors.successColor,
-            pulseAnimation: pulseAnimation,
+          GestureDetector(
+            onTap: () => _showUpdatePasswordDialog(context, authProvider),
+            child: _AnimatedSettingsTile(
+              title: 'Update password',
+              subtitle: 'Change your account password',
+              icon: Icons.lock,
+              color: _SettingsColors.warningColor,
+              pulseAnimation: pulseAnimation,
+            ),
           ),
           const SizedBox(height: 28),
           
@@ -341,7 +335,7 @@ class _SettingsContent extends StatelessWidget {
             },
             child: _AnimatedSettingsTile(
               title: 'App version info',
-              subtitle: 'RoboCleanerBuddy v1.0.0',
+              subtitle: 'RCB v1.0.0',
               icon: Icons.info,
               color: _SettingsColors.accentSecondary,
               pulseAnimation: pulseAnimation,
@@ -766,85 +760,134 @@ class _ProfileHeaderCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Animated Avatar
-              AnimatedBuilder(
-                animation: rotationAnimation,
-                builder: (context, child) {
-                  return Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      // Rotating ring
-                      Transform.rotate(
-                        angle: rotationAnimation.value * 6.28319,
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: _SettingsColors.accentSecondary.withOpacity(0.3),
-                              width: 2,
+              // Animated Avatar - Clickable for upload and view profile
+              GestureDetector(
+                onTap: () => _handleProfilePictureTap(context, authProvider),
+                child: AnimatedBuilder(
+                  animation: rotationAnimation,
+                  builder: (context, child) {
+                    final photoUrl = authProvider.userModel?.photoUrl;
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Rotating ring
+                        Transform.rotate(
+                          angle: rotationAnimation.value * 6.28319,
+                          child: Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _SettingsColors.accentSecondary.withOpacity(0.3),
+                                width: 2,
+                              ),
                             ),
-                          ),
-                          child: Stack(
-                            children: List.generate(8, (index) {
-                              return Transform.rotate(
-                                angle: (index * 0.785398),
-                                child: Align(
-                                  alignment: Alignment.topCenter,
-                                  child: Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: _SettingsColors.accentSecondary,
-                                      shape: BoxShape.circle,
+                            child: Stack(
+                              children: List.generate(8, (index) {
+                                return Transform.rotate(
+                                  angle: (index * 0.785398),
+                                  child: Align(
+                                    alignment: Alignment.topCenter,
+                                    child: Container(
+                                      width: 6,
+                                      height: 6,
+                                      decoration: BoxDecoration(
+                                        color: _SettingsColors.accentSecondary,
+                                        shape: BoxShape.circle,
+                                      ),
                                     ),
                                   ),
+                                );
+                              }),
+                            ),
+                          ),
+                        ),
+                        // Avatar with image or initial
+                        Transform.scale(
+                          scale: pulseAnimation.value,
+                          child: Container(
+                            width: 68,
+                            height: 68,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: photoUrl == null || photoUrl.isEmpty
+                                  ? LinearGradient(
+                                      colors: [
+                                        _SettingsColors.accent,
+                                        _SettingsColors.accentSecondary,
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
+                              color: photoUrl != null && photoUrl.isNotEmpty
+                                  ? Colors.transparent
+                                  : null,
+                              image: photoUrl != null && photoUrl.isNotEmpty
+                                  ? DecorationImage(
+                                      image: NetworkImage(photoUrl),
+                                      fit: BoxFit.cover,
+                                      onError: (exception, stackTrace) {
+                                        // If image fails to load, show initial
+                                      },
+                                    )
+                                  : null,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _SettingsColors.accent.withOpacity(0.5),
+                                  blurRadius: 20,
+                                  spreadRadius: 3,
                                 ),
-                              );
-                            }),
-                          ),
-                        ),
-                      ),
-                      // Avatar
-                      Transform.scale(
-                        scale: pulseAnimation.value,
-                        child: Container(
-                          width: 68,
-                          height: 68,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [
-                                _SettingsColors.accent,
-                                _SettingsColors.accentSecondary,
                               ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _SettingsColors.accent.withOpacity(0.5),
-                                blurRadius: 20,
-                                spreadRadius: 3,
-                              ),
-                            ],
+                            child: photoUrl == null || photoUrl.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 30,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : null,
                           ),
-                          child: Center(
-                            child: Text(
-                              name.isNotEmpty ? name[0].toUpperCase() : 'U',
-                              style: GoogleFonts.poppins(
-                                fontSize: 30,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                        ),
+                        // Camera icon overlay
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _SettingsColors.accentSecondary,
+                              border: Border.all(
+                                color: _SettingsColors.cardBg,
+                                width: 2,
                               ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 12,
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  );
-                },
+                      ],
+                    );
+                  },
+                ),
               ),
               const SizedBox(width: 20),
               Expanded(
@@ -1126,7 +1169,7 @@ void _showVersionDialog(BuildContext context) {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildVersionInfoRow(Icons.apps, 'App Name', 'RoboCleanerBuddy'),
+              _buildVersionInfoRow(Icons.apps, 'App Name', 'RCB'),
               const SizedBox(height: 12),
               _buildVersionInfoRow(Icons.tag, 'Version', 'v1.0.0'),
               const SizedBox(height: 12),
@@ -1189,4 +1232,1502 @@ Widget _buildVersionInfoRow(IconData icon, String label, String value) {
       ),
     ],
   );
+}
+
+/// Show dialog to update username
+void _showUpdateUsernameDialog(BuildContext context, AuthProvider authProvider) {
+  final nameController = TextEditingController(
+    text: authProvider.userModel?.name ?? '',
+  );
+  bool isUpdating = false;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setState) {
+        return AlertDialog(
+          backgroundColor: _SettingsColors.cardBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: _SettingsColors.accentSecondary.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _SettingsColors.accentSecondary,
+                      _SettingsColors.accent,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.edit, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Update Username',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                style: GoogleFonts.poppins(color: _SettingsColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Display Name',
+                  labelStyle: GoogleFonts.poppins(
+                    color: _SettingsColors.textSecondary,
+                  ),
+                  hintText: 'Enter your name',
+                  hintStyle: GoogleFonts.poppins(
+                    color: _SettingsColors.textSecondary.withOpacity(0.5),
+                  ),
+                  enabled: !isUpdating,
+                  filled: true,
+                  fillColor: _SettingsColors.primaryMedium,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _SettingsColors.accentSecondary.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _SettingsColors.accentSecondary.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _SettingsColors.accentSecondary,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+              if (isUpdating) ...[
+                const SizedBox(height: 16),
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _SettingsColors.accentSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isUpdating
+                  ? null
+                  : () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isUpdating
+                  ? null
+                  : () async {
+                      if (nameController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Name cannot be empty',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _SettingsColors.warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setState(() {
+                        isUpdating = true;
+                      });
+
+                      final result = await authProvider.updateProfileName(
+                        nameController.text.trim(),
+                      );
+
+                      if (context.mounted) {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              result['success'] == true
+                                  ? result['message'] ?? 'Name updated successfully'
+                                  : result['error'] ?? 'Failed to update name',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            backgroundColor: result['success'] == true
+                                ? _SettingsColors.successColor
+                                : _SettingsColors.warningColor,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _SettingsColors.accentSecondary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Update',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+/// Show dialog to update email
+void _showUpdateEmailDialog(BuildContext context, AuthProvider authProvider) {
+  final emailController = TextEditingController(
+    text: authProvider.userModel?.email ?? '',
+  );
+  bool isUpdating = false;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setState) {
+        return AlertDialog(
+          backgroundColor: _SettingsColors.cardBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: _SettingsColors.accent.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _SettingsColors.accent,
+                      _SettingsColors.accentSecondary,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.email, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Update Email',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                keyboardType: TextInputType.emailAddress,
+                style: GoogleFonts.poppins(color: _SettingsColors.textPrimary),
+                decoration: InputDecoration(
+                  labelText: 'Email Address',
+                  labelStyle: GoogleFonts.poppins(
+                    color: _SettingsColors.textSecondary,
+                  ),
+                  hintText: 'Enter your email',
+                  hintStyle: GoogleFonts.poppins(
+                    color: _SettingsColors.textSecondary.withOpacity(0.5),
+                  ),
+                  enabled: !isUpdating,
+                  filled: true,
+                  fillColor: _SettingsColors.primaryMedium,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _SettingsColors.accent.withOpacity(0.3),
+                    ),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _SettingsColors.accent.withOpacity(0.3),
+                    ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(
+                      color: _SettingsColors.accent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+              ),
+              if (isUpdating) ...[
+                const SizedBox(height: 16),
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(_SettingsColors.accent),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isUpdating
+                  ? null
+                  : () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isUpdating
+                  ? null
+                  : () async {
+                      if (emailController.text.trim().isEmpty ||
+                          !emailController.text.contains('@')) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please enter a valid email address',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _SettingsColors.warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setState(() {
+                        isUpdating = true;
+                      });
+
+                      final result = await authProvider.updateProfileEmail(
+                        emailController.text.trim(),
+                      );
+
+                      if (context.mounted) {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              result['success'] == true
+                                  ? result['message'] ?? 'Email updated successfully'
+                                  : result['error'] ?? 'Failed to update email',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            backgroundColor: result['success'] == true
+                                ? _SettingsColors.successColor
+                                : _SettingsColors.warningColor,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _SettingsColors.accent,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Update',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+/// Show dialog to update password
+void _showUpdatePasswordDialog(BuildContext context, AuthProvider authProvider) {
+  final currentPasswordController = TextEditingController();
+  final newPasswordController = TextEditingController();
+  final confirmPasswordController = TextEditingController();
+  bool isUpdating = false;
+  bool obscureCurrent = true;
+  bool obscureNew = true;
+  bool obscureConfirm = true;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (context, setState) {
+        return AlertDialog(
+          backgroundColor: _SettingsColors.cardBg,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: _SettingsColors.warningColor.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _SettingsColors.warningColor,
+                      _SettingsColors.warningColor.withOpacity(0.7),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.lock, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Update Password',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textPrimary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: currentPasswordController,
+                  obscureText: obscureCurrent,
+                  style: GoogleFonts.poppins(color: _SettingsColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    labelStyle: GoogleFonts.poppins(
+                      color: _SettingsColors.textSecondary,
+                    ),
+                    enabled: !isUpdating,
+                    filled: true,
+                    fillColor: _SettingsColors.primaryMedium,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureCurrent ? Icons.visibility : Icons.visibility_off,
+                        color: _SettingsColors.textSecondary,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          obscureCurrent = !obscureCurrent;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: obscureNew,
+                  style: GoogleFonts.poppins(color: _SettingsColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    labelStyle: GoogleFonts.poppins(
+                      color: _SettingsColors.textSecondary,
+                    ),
+                    enabled: !isUpdating,
+                    filled: true,
+                    fillColor: _SettingsColors.primaryMedium,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureNew ? Icons.visibility : Icons.visibility_off,
+                        color: _SettingsColors.textSecondary,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          obscureNew = !obscureNew;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: obscureConfirm,
+                  style: GoogleFonts.poppins(color: _SettingsColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    labelStyle: GoogleFonts.poppins(
+                      color: _SettingsColors.textSecondary,
+                    ),
+                    enabled: !isUpdating,
+                    filled: true,
+                    fillColor: _SettingsColors.primaryMedium,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        obscureConfirm ? Icons.visibility : Icons.visibility_off,
+                        color: _SettingsColors.textSecondary,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          obscureConfirm = !obscureConfirm;
+                        });
+                      },
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor.withOpacity(0.3),
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: _SettingsColors.warningColor,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                ),
+                if (isUpdating) ...[
+                  const SizedBox(height: 16),
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _SettingsColors.warningColor,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isUpdating
+                  ? null
+                  : () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Cancel',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isUpdating
+                  ? null
+                  : () async {
+                      if (currentPasswordController.text.isEmpty ||
+                          newPasswordController.text.isEmpty ||
+                          confirmPasswordController.text.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Please fill in all fields',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _SettingsColors.warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (newPasswordController.text.length < 6) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Password must be at least 6 characters',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _SettingsColors.warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (newPasswordController.text !=
+                          confirmPasswordController.text) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Passwords do not match',
+                              style: GoogleFonts.poppins(),
+                            ),
+                            backgroundColor: _SettingsColors.warningColor,
+                          ),
+                        );
+                        return;
+                      }
+
+                      setState(() {
+                        isUpdating = true;
+                      });
+
+                      final result = await authProvider.updatePassword(
+                        currentPassword: currentPasswordController.text,
+                        newPassword: newPasswordController.text,
+                      );
+
+                      if (context.mounted) {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              result['success'] == true
+                                  ? result['message'] ??
+                                      'Password updated successfully'
+                                  : result['error'] ?? 'Failed to update password',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            backgroundColor: result['success'] == true
+                                ? _SettingsColors.successColor
+                                : _SettingsColors.warningColor,
+                            duration: const Duration(seconds: 3),
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _SettingsColors.warningColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                'Update',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        );
+      },
+    ),
+  );
+}
+
+/// Handle profile picture tap - show options to view profile or upload image
+void _handleProfilePictureTap(BuildContext context, AuthProvider authProvider) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: _SettingsColors.cardBg,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) => Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: _SettingsColors.textSecondary.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _SettingsColors.accent,
+                    _SettingsColors.accentSecondary,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.person, color: Colors.white, size: 20),
+            ),
+            title: Text(
+              'View Profile',
+              style: GoogleFonts.poppins(
+                color: _SettingsColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              _showAnimatedProfileDialog(context, authProvider);
+            },
+          ),
+          ListTile(
+            leading: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _SettingsColors.successColor,
+                    _SettingsColors.successColor.withOpacity(0.7),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+            ),
+            title: Text(
+              'Upload Photo',
+              style: GoogleFonts.poppins(
+                color: _SettingsColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            onTap: () {
+              Navigator.pop(ctx);
+              _pickAndUploadProfileImage(context, authProvider);
+            },
+          ),
+          if (authProvider.userModel?.photoUrl != null &&
+              authProvider.userModel!.photoUrl!.isNotEmpty)
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: _SettingsColors.warningColor.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: _SettingsColors.warningColor,
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  Icons.delete_outline,
+                  color: _SettingsColors.warningColor,
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                'Remove Photo',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.warningColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                _removeProfileImage(context, authProvider);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Pick and upload profile image
+Future<void> _pickAndUploadProfileImage(
+  BuildContext context,
+  AuthProvider authProvider,
+) async {
+  try {
+    final ImagePicker picker = ImagePicker();
+    
+    // Show source selection
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: _SettingsColors.cardBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: _SettingsColors.textSecondary.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.white),
+              title: Text(
+                'Take Photo',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.white),
+              title: Text(
+                'Choose from Gallery',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    // Pick image
+    final XFile? image = await picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+
+    if (image == null) return;
+
+    // Show loading dialog
+    if (!context.mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: _SettingsColors.cardBg,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  _SettingsColors.accentSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Uploading image...',
+                style: GoogleFonts.poppins(
+                  color: _SettingsColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // Upload to Supabase
+    final file = File(image.path);
+    final userId = authProvider.user?.uid;
+    if (userId == null) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        _showErrorSnackBar(context, 'User not authenticated');
+      }
+      return;
+    }
+
+    final result = await SupabaseStorageService.uploadProfileImage(
+      userId: userId,
+      imageFile: file,
+      isAdmin: authProvider.isAdmin,
+    );
+
+    if (!context.mounted) return;
+    Navigator.pop(context); // Close loading dialog
+
+    if (result['success'] == true) {
+      // Update profile photo URL in Firestore
+      final updateResult = await authProvider.updateProfilePhotoUrl(
+        result['url'] as String,
+      );
+
+      if (context.mounted) {
+        if (updateResult['success'] == true) {
+          _showSuccessSnackBar(context, 'Profile image uploaded successfully!');
+        } else {
+          _showErrorSnackBar(
+            context,
+            updateResult['error'] ?? 'Failed to update profile',
+          );
+        }
+      }
+    } else {
+      if (context.mounted) {
+        _showErrorSnackBar(
+          context,
+          result['error'] ?? 'Failed to upload image',
+        );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      Navigator.pop(context); // Close loading dialog if still open
+      _showErrorSnackBar(context, 'Error: ${e.toString()}');
+    }
+  }
+}
+
+/// Remove profile image
+Future<void> _removeProfileImage(
+  BuildContext context,
+  AuthProvider authProvider,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: _SettingsColors.cardBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: _SettingsColors.warningColor.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      title: Text(
+        'Remove Profile Photo',
+        style: GoogleFonts.poppins(
+          color: _SettingsColors.textPrimary,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      content: Text(
+        'Are you sure you want to remove your profile photo?',
+        style: GoogleFonts.poppins(
+          color: _SettingsColors.textSecondary,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(
+            'Cancel',
+            style: GoogleFonts.poppins(
+              color: _SettingsColors.textSecondary,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: _SettingsColors.warningColor,
+          ),
+          child: Text(
+            'Remove',
+            style: GoogleFonts.poppins(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) return;
+
+  try {
+    final userId = authProvider.user?.uid;
+    if (userId == null) {
+      _showErrorSnackBar(context, 'User not authenticated');
+      return;
+    }
+
+    // Delete from Supabase
+    await SupabaseStorageService.deleteProfileImage(
+      userId: userId,
+      isAdmin: authProvider.isAdmin,
+    );
+
+    // Update Firestore to remove photo URL
+    final updateResult = await authProvider.updateProfilePhotoUrl('');
+
+    if (context.mounted) {
+      if (updateResult['success'] == true) {
+        _showSuccessSnackBar(context, 'Profile photo removed successfully');
+      } else {
+        _showErrorSnackBar(
+          context,
+          updateResult['error'] ?? 'Failed to remove photo',
+        );
+      }
+    }
+  } catch (e) {
+    if (context.mounted) {
+      _showErrorSnackBar(context, 'Error: ${e.toString()}');
+    }
+  }
+}
+
+/// Show success snackbar
+void _showSuccessSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          const Icon(Icons.check_circle, color: Colors.white),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: _SettingsColors.successColor,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 3),
+    ),
+  );
+}
+
+/// Show error snackbar
+void _showErrorSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          const Icon(Icons.error_outline, color: Colors.white),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.poppins(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: _SettingsColors.warningColor,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 4),
+    ),
+  );
+}
+
+/// Show animated profile information dialog
+void _showAnimatedProfileDialog(BuildContext context, AuthProvider authProvider) {
+  final userModel = authProvider.userModel;
+  if (userModel == null) return;
+
+  showGeneralDialog(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Profile Information',
+    barrierColor: Colors.black.withOpacity(0.7),
+    transitionDuration: const Duration(milliseconds: 400),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return _AnimatedProfileDialog(
+        userModel: userModel,
+        animation: animation,
+      );
+    },
+    transitionBuilder: (context, animation, secondaryAnimation, child) {
+      // Fade animation
+      final fadeAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOut,
+      );
+      
+      // Scale animation
+      final scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+        CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ),
+      );
+      
+      // Slide animation
+      final slideAnimation = Tween<Offset>(
+        begin: const Offset(0, 0.1),
+        end: Offset.zero,
+      ).animate(
+        CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        ),
+      );
+
+      return FadeTransition(
+        opacity: fadeAnimation,
+        child: ScaleTransition(
+          scale: scaleAnimation,
+          child: SlideTransition(
+            position: slideAnimation,
+            child: child,
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _AnimatedProfileDialog extends StatefulWidget {
+  final dynamic userModel;
+  final Animation<double> animation;
+
+  const _AnimatedProfileDialog({
+    required this.userModel,
+    required this.animation,
+  });
+
+  @override
+  State<_AnimatedProfileDialog> createState() => _AnimatedProfileDialogState();
+}
+
+class _AnimatedProfileDialogState extends State<_AnimatedProfileDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _contentController;
+  late Animation<double> _contentAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _contentController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    
+    _contentAnimation = CurvedAnimation(
+      parent: _contentController,
+      curve: Curves.easeOut,
+    );
+    
+    // Delay content animation slightly
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) {
+        _contentController.forward();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _contentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = widget.userModel?.name ?? 'User';
+    final email = widget.userModel?.email ?? 'N/A';
+    final status = widget.userModel?.status ?? 'Active';
+    final role = widget.userModel?.role?.toString().split('.').last ?? 'user';
+    final createdAt = widget.userModel?.createdAt;
+    final lastLogin = widget.userModel?.lastLogin;
+    final isEmailVerified = widget.userModel?.isEmailVerified ?? false;
+
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: 400,
+          maxHeight: screenHeight * 0.85,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              _SettingsColors.cardBg,
+              _SettingsColors.primaryMedium,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: _SettingsColors.accent.withOpacity(0.3),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: _SettingsColors.accent.withOpacity(0.3),
+              blurRadius: 30,
+              spreadRadius: 5,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header with gradient
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _SettingsColors.accent,
+                      _SettingsColors.accentSecondary,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Close button
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white),
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white.withOpacity(0.2),
+                            padding: const EdgeInsets.all(8),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Avatar
+                    FadeTransition(
+                      opacity: _contentAnimation,
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: widget.userModel?.photoUrl == null ||
+                                  widget.userModel!.photoUrl!.isEmpty
+                              ? LinearGradient(
+                                  colors: [
+                                    Colors.white.withOpacity(0.3),
+                                    Colors.white.withOpacity(0.1),
+                                  ],
+                                )
+                              : null,
+                          image: widget.userModel?.photoUrl != null &&
+                                  widget.userModel!.photoUrl!.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(widget.userModel!.photoUrl!),
+                                  fit: BoxFit.cover,
+                                  onError: (exception, stackTrace) {
+                                    // If image fails to load, show initial
+                                  },
+                                )
+                              : null,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 3,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.3),
+                              blurRadius: 20,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: widget.userModel?.photoUrl == null ||
+                                widget.userModel!.photoUrl!.isEmpty
+                            ? Center(
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 42,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Name
+                    FadeTransition(
+                      opacity: _contentAnimation,
+                      child: Text(
+                        name,
+                        style: GoogleFonts.poppins(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // Status badge
+                    FadeTransition(
+                      opacity: _contentAnimation,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                color: _SettingsColors.successColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              status,
+                              style: GoogleFonts.poppins(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Content
+              Flexible(
+                child: FadeTransition(
+                  opacity: _contentAnimation,
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.2),
+                      end: Offset.zero,
+                    ).animate(_contentAnimation),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                        _buildInfoRow(
+                          Icons.email_rounded,
+                          'Email',
+                          email,
+                          _SettingsColors.accentSecondary,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildInfoRow(
+                          Icons.person_outline_rounded,
+                          'Role',
+                          role.toUpperCase(),
+                          _SettingsColors.accent,
+                        ),
+                        const SizedBox(height: 16),
+                        _buildInfoRow(
+                          isEmailVerified
+                              ? Icons.verified_rounded
+                              : Icons.email_outlined,
+                          'Email Status',
+                          isEmailVerified ? 'Verified' : 'Not Verified',
+                          isEmailVerified
+                              ? _SettingsColors.successColor
+                              : _SettingsColors.warningColor,
+                        ),
+                        if (createdAt != null) ...[
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                            Icons.calendar_today_rounded,
+                            'Member Since',
+                            _formatDate(createdAt),
+                            _SettingsColors.accentSecondary,
+                          ),
+                        ],
+                        if (lastLogin != null) ...[
+                          const SizedBox(height: 16),
+                          _buildInfoRow(
+                            Icons.access_time_rounded,
+                            'Last Login',
+                            _formatDate(lastLogin),
+                            _SettingsColors.accent,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: color.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [color, color.withOpacity(0.7)],
+              ),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 8,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.poppins(
+                    fontSize: 11,
+                    color: _SettingsColors.textSecondary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: GoogleFonts.poppins(
+                    fontSize: 14,
+                    color: _SettingsColors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[date.month - 1]} ${date.day}, ${date.year}';
+  }
 }
